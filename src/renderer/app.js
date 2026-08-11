@@ -163,8 +163,7 @@ async function saveSettings(partialSettings) {
 async function restoreByIndex(index) {
   const item = filteredItems()[index];
   if (!item) return;
-  await window.copyPannel.restore(item.id);
-  await window.copyPannel.hide();
+  await window.copyPannel.paste(item.id);
 }
 
 searchInput.addEventListener('input', (event) => {
@@ -189,14 +188,12 @@ listEl.addEventListener('click', async (event) => {
 
   const id = itemEl.dataset.id;
   if (!button) {
-    await window.copyPannel.restore(id);
-    await window.copyPannel.hide();
+    await window.copyPannel.paste(id);
     return;
   }
 
   if (button.dataset.action === 'restore') {
-    await window.copyPannel.restore(id);
-    await window.copyPannel.hide();
+    await window.copyPannel.paste(id);
   }
   if (button.dataset.action === 'delete') await window.copyPannel.delete(id);
 });

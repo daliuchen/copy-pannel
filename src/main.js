@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Tray, Menu, clipboard, ipcMain, globalShortcut, nativeImage, protocol, screen } = require('electron');
+const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
@@ -413,6 +414,29 @@ async function restoreItem(id) {
   }
 }
 
+async function pasteItem(id) {
+  const restored = await restoreItem(id);
+  if (!restored) return false;
+
+  hidePanel();
+  setTimeout(sendPasteShortcut, 80);
+  return true;
+}
+
+function sendPasteShortcut() {
+  if (process.platform !== 'darwin') return;
+
+  childProcess.execFile(
+    'osascript',
+    ['-e', 'tell application "System Events" to keystroke "v" using command down'],
+    (error) => {
+      if (error) {
+        console.error('Failed to send paste shortcut:', error);
+      }
+    }
+  );
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 780,
@@ -550,6 +574,7 @@ ipcMain.handle('settings:update', async (_event, nextSettings) => {
   return store.settings;
 });
 ipcMain.handle('history:restore', async (_event, id) => restoreItem(id));
+ipcMain.handle('history:paste', async (_event, id) => pasteItem(id));
 ipcMain.handle('panel:hide', () => {
   hidePanel();
   return true;
