@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
   clearSearchOnOpen: true
 };
 const POLL_INTERVAL_MS = 650;
+const OCR_TIMEOUT_MS = 8000;
 const MEDIA_EXTENSIONS = new Set([
   '.avi',
   '.m4v',
@@ -239,6 +240,69 @@ function buildTitle(item) {
   return '剪贴板内容';
 }
 
+function buildSearchableText(item) {
+  const imageDescription = item.type === 'image' ? `图片 ${item.width}x${item.height}` : '';
+  return [item.title, imageDescription, item.ocrText, item.text, ...(item.filePaths || [])]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function getOcrHelperPath() {
+  if (process.platform !== 'darwin') return null;
+  if (app.isPackaged) return path.join(process.resourcesPath, 'ocr-helper');
+
+  const localHelperPath = path.join(__dirname, '..', 'resources', 'ocr-helper');
+  if (fsSync.existsSync(localHelperPath)) return localHelperPath;
+  return null;
+}
+
+function runOcr(imagePath) {
+  return new Promise((resolve) => {
+    const helperPath = getOcrHelperPath();
+    if (!helperPath || !fsSync.existsSync(helperPath)) {
+      resolve({ status: 'unavailable', text: '', lines: [] });
+      return;
+    }
+
+    childProcess.execFile(
+      helperPath,
+      [imagePath],
+      {
+        timeout: OCR_TIMEOUT_MS,
+        maxBuffer: 1024 * 1024 * 4
+      },
+      (error, stdout) => {
+        if (error) {
+          console.error('Failed to run OCR:', error);
+          resolve({ status: 'failed', text: '', lines: [] });
+          return;
+        }
+
+        try {
+          const result = JSON.parse(stdout);
+          const text = String(result.text || '').trim();
+          resolve({
+            status: text ? 'ready' : 'empty',
+            text,
+            lines: Array.isArray(result.lines) ? result.lines : []
+          });
+        } catch (parseError) {
+          console.error('Failed to parse OCR output:', parseError);
+          resolve({ status: 'failed', text: '', lines: [] });
+        }
+      }
+    );
+  });
+}
+
+async function applyOcr(item, imagePath) {
+  const result = await runOcr(imagePath);
+  item.ocrStatus = result.status;
+  item.ocrText = result.text;
+  item.ocrLines = result.lines;
+  item.searchableText = buildSearchableText(item);
+}
+
 async function readCurrentClipboardItem() {
   const filePaths = readClipboardFilePaths();
   if (filePaths.length > 0) {
@@ -253,6 +317,11 @@ async function readCurrentClipboardItem() {
       createdAt: nowIso()
     };
     item.title = buildTitle(item);
+    if (kind === 'image-file' && filePaths.length === 1) {
+      await applyOcr(item, filePaths[0]);
+    } else {
+      item.searchableText = buildSearchableText(item);
+    }
     return {
       signature: `${kind}:${hashBuffer(Buffer.from(joined))}`,
       item
@@ -281,6 +350,7 @@ async function readCurrentClipboardItem() {
         createdAt: nowIso()
       };
       item.title = buildTitle(item);
+      await applyOcr(item, assetPath);
       return {
         signature: `image:${digest}`,
         item
@@ -299,6 +369,7 @@ async function readCurrentClipboardItem() {
       createdAt: nowIso()
     };
     item.title = buildTitle(item);
+    item.searchableText = buildSearchableText(item);
     return {
       signature: `text:${hashBuffer(Buffer.from(text))}`,
       item
@@ -326,6 +397,12 @@ async function captureClipboard() {
     if (duplicateIndex >= 0) {
       const [existing] = store.items.splice(duplicateIndex, 1);
       existing.createdAt = nowIso();
+      if (snapshot.item.ocrText && !existing.ocrText) {
+        existing.ocrStatus = snapshot.item.ocrStatus;
+        existing.ocrText = snapshot.item.ocrText;
+        existing.ocrLines = snapshot.item.ocrLines;
+        existing.searchableText = buildSearchableText(existing);
+      }
       store.items.unshift(existing);
     } else {
       store.items.unshift(snapshot.item);
@@ -413,6 +490,13 @@ async function restoreItem(id) {
       isRestoring = false;
     }, 300);
   }
+}
+
+async function copyOcrText(id) {
+  const item = getItem(id);
+  if (!item?.ocrText) return false;
+  clipboard.writeText(item.ocrText);
+  return true;
 }
 
 async function pasteItem(id) {
@@ -587,6 +671,7 @@ ipcMain.handle('settings:update', async (_event, nextSettings) => {
 });
 ipcMain.handle('history:restore', async (_event, id) => restoreItem(id));
 ipcMain.handle('history:paste', async (_event, id) => pasteItem(id));
+ipcMain.handle('history:copy-ocr', async (_event, id) => copyOcrText(id));
 ipcMain.handle('panel:hide', () => {
   hidePanel();
   return true;

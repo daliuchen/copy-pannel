@@ -46,15 +46,30 @@ function typeLabel(item) {
 function previewText(item) {
   if (item.type === 'text') return item.text;
   if (item.filePaths?.length) return item.filePaths.join('\n');
-  return item.searchableText || item.title;
+  return item.ocrText || item.searchableText || item.title;
+}
+
+function ocrStatusLabel(item) {
+  if (item.ocrStatus === 'ready') return '已识别文字';
+  if (item.ocrStatus === 'empty') return '未识别到文字';
+  if (item.ocrStatus === 'failed') return '识别失败';
+  if (item.ocrStatus === 'unavailable') return 'OCR 不可用';
+  return '';
 }
 
 function itemBodyHtml(item) {
   if (item.type === 'image' && item.previewUrl) {
+    const ocrHtml = item.ocrText
+      ? `<div class="ocr-content" title="${escapeHtml(item.ocrText)}">${escapeHtml(item.ocrText)}</div>`
+      : ocrStatusLabel(item)
+        ? `<div class="ocr-status">${escapeHtml(ocrStatusLabel(item))}</div>`
+        : '';
+
     return `
       <div class="image-content">
         <img alt="剪贴板图片" src="${escapeHtml(item.previewUrl)}" />
       </div>
+      ${ocrHtml}
     `;
   }
 
@@ -81,7 +96,7 @@ function filteredItems() {
     if (!matchesFilter(item)) return false;
     if (tokens.length === 0) return true;
 
-    const haystack = [item.title, item.searchableText, item.text, ...(item.filePaths || [])]
+    const haystack = [item.title, item.searchableText, item.ocrText, item.text, ...(item.filePaths || [])]
       .filter(Boolean)
       .join('\n')
       .toLowerCase();
@@ -110,6 +125,7 @@ function render() {
             </div>
           </div>
           <div class="item-actions">
+            ${item.ocrText ? '<button class="item-action" type="button" data-action="copy-ocr" title="复制识别文字">文</button>' : ''}
             <button class="item-action primary" type="button" data-action="restore" title="复制到剪贴板">↵</button>
             <button class="item-action danger" type="button" data-action="delete" title="删除">×</button>
           </div>
@@ -194,6 +210,9 @@ listEl.addEventListener('click', async (event) => {
 
   if (button.dataset.action === 'restore') {
     await window.copyPannel.paste(id);
+  }
+  if (button.dataset.action === 'copy-ocr') {
+    await window.copyPannel.copyOcr(id);
   }
   if (button.dataset.action === 'delete') await window.copyPannel.delete(id);
 });

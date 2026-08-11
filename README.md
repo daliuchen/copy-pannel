@@ -12,8 +12,11 @@ A macOS clipboard manager intended as a Clipy replacement, with better support f
 - Opens near the current mouse position and on the current display
 - Tracks text, images, and file URL clipboard entries
 - Stores copied images as local PNG assets and restores them back to the system clipboard
+- Runs on-device OCR for copied images using Apple's Vision framework
+- Searches recognized text from images
+- Copies recognized image text from the history list
 - Tracks videos and other media files as Finder file references
-- Searches text, filenames, and image dimensions
+- Searches text, filenames, image dimensions, and OCR text
 - Filters by type: All, Text, Image, Video, File
 - `Enter` restores the selected item and hides the panel
 - `Esc` hides the panel or closes settings/confirmation dialogs
@@ -67,6 +70,8 @@ pnpm run check
 pnpm run build
 ```
 
+The build script compiles `native/ocr-helper.swift` into `resources/ocr-helper` before packaging the Electron app. The helper is included as an extra resource so release builds can run OCR without requiring Swift to be installed on the user's machine.
+
 GitHub Actions builds the macOS app on push and pull requests. Pushing a tag named `v*`, for example `v0.1.1`, builds the app and publishes a GitHub release with the generated artifacts.
 
 ## Notes
@@ -74,3 +79,5 @@ GitHub Actions builds the macOS app on push and pull requests. Pushing a tag nam
 Videos are usually not stored directly as binary clipboard data. They are commonly placed on the clipboard as file references or file URLs. Copy Pannel records and restores those references, which makes it suitable for copying media files between Finder, chat apps, and editors.
 
 Image history is stored as local PNG files. When image records are deleted, history is cleared, or the history limit removes old items, unused image cache files are cleaned up automatically.
+
+OCR runs locally through Apple's Vision framework on macOS. It defaults to simplified Chinese and English recognition when supported by the system, and falls back without breaking normal clipboard capture if OCR is unavailable or fails.

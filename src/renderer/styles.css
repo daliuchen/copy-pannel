@@ -281,6 +281,26 @@ h1 {
   background: #f8fafc;
 }
 
+.ocr-content,
+.ocr-status {
+  margin-top: 7px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ocr-content {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+.ocr-status {
+  color: var(--faint);
+}
+
 .item-meta {
   display: flex;
   gap: 7px;

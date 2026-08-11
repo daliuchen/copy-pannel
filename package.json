@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer/app.js",
-    "build": "electron-builder --mac --publish never"
+    "build:ocr": "mkdir -p resources && swiftc native/ocr-helper.swift -o resources/ocr-helper",
+    "build": "pnpm run build:ocr && electron-builder --mac --publish never"
   },
   "keywords": [
     "clipboard",
@@ -28,6 +29,12 @@
       "src/**/*",
       "assets/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/ocr-helper",
+        "to": "ocr-helper"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
