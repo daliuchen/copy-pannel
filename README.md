@@ -1,5 +1,9 @@
 # Copy Pannel
 
+<p align="center">
+  <img src="assets/app-icon.svg" width="128" alt="Copy Pannel icon">
+</p>
+
 A macOS clipboard manager intended as a Clipy replacement, with better support for images, media files, and search while keeping a fast keyboard-driven workflow.
 
 ## Features
