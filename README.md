@@ -67,7 +67,7 @@ pnpm run check
 pnpm run build
 ```
 
-GitHub Actions builds the macOS app on push and pull requests. Pushing a tag named `v*`, for example `v0.1.0`, builds the app and publishes a GitHub release with the generated artifacts.
+GitHub Actions builds the macOS app on push and pull requests. Pushing a tag named `v*`, for example `v0.1.1`, builds the app and publishes a GitHub release with the generated artifacts.
 
 ## Notes
 

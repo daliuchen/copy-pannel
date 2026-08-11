@@ -31,6 +31,7 @@ const MEDIA_EXTENSIONS = new Set([
 
 let mainWindow;
 let tray;
+let trayMenu;
 let pollTimer;
 let store;
 let lastSignature = '';
@@ -449,6 +450,8 @@ function createWindow() {
     transparent: true,
     resizable: false,
     movable: true,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
+    acceptFirstMouse: true,
     focusable: true,
     fullscreenable: false,
     skipTaskbar: true,
@@ -463,8 +466,7 @@ function createWindow() {
   });
 
   if (process.platform === 'darwin') {
-    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    mainWindow.setAlwaysOnTop(true, 'floating');
+    keepPanelAboveFullscreen();
   }
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -479,11 +481,22 @@ function createWindow() {
 
 function showPanel() {
   if (!mainWindow) return;
+  keepPanelAboveFullscreen();
   positionPanelNearCursor();
   mainWindow.showInactive();
   mainWindow.webContents.focus();
   mainWindow.webContents.send('panel:opened');
   sendItems();
+}
+
+function keepPanelAboveFullscreen() {
+  if (process.platform !== 'darwin' || !mainWindow) return;
+
+  mainWindow.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+    skipTransformProcessType: true
+  });
+  mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
 }
 
 function positionPanelNearCursor() {
@@ -523,19 +536,18 @@ function toggleWindow() {
 function createTray() {
   tray = new Tray(createTrayIcon());
   tray.setToolTip('Copy Pannel');
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: '打开剪贴板', click: showPanel },
-      { type: 'separator' },
-      {
-        label: '退出',
-        click: () => {
-          app.isQuitting = true;
-          app.quit();
-        }
+  trayMenu = Menu.buildFromTemplate([
+    { label: '打开剪贴板', click: showPanel },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
       }
-    ])
-  );
+    }
+  ]);
+  tray.setContextMenu(trayMenu);
   tray.on('click', showPanel);
 }
 
