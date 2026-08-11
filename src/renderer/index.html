@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Copy Pannel</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>剪贴板</h1>
+          <p id="countLabel">0 条记录</p>
+        </div>
+        <div class="window-actions">
+          <button id="clearButton" class="icon-button" type="button" title="清空未收藏记录">⌫</button>
+          <button id="hideButton" class="icon-button" type="button" title="隐藏">×</button>
+        </div>
+      </header>
+
+      <section class="search-band">
+        <div class="search-box">
+          <span>⌕</span>
+          <input id="searchInput" type="search" placeholder="搜索" autofocus />
+        </div>
+        <div class="filter-group" role="tablist" aria-label="类型筛选">
+          <button class="filter is-active" type="button" data-filter="all">全部</button>
+          <button class="filter" type="button" data-filter="text">文本</button>
+          <button class="filter" type="button" data-filter="image">图片</button>
+          <button class="filter" type="button" data-filter="video">视频</button>
+          <button class="filter" type="button" data-filter="file">文件</button>
+          <button class="filter" type="button" data-filter="favorite">收藏</button>
+        </div>
+      </section>
+
+      <section id="historyList" class="history-list" aria-live="polite"></section>
+      <section id="emptyState" class="empty-state" hidden>
+        <p>没有匹配内容</p>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

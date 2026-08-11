@@ -1,0 +1,26 @@
+{
+  "name": "copy-pannel",
+  "version": "0.1.0",
+  "description": "A macOS-friendly clipboard history app with text, image, and media file support.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer/app.js"
+  },
+  "keywords": [
+    "clipboard",
+    "electron",
+    "macos"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.14.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  },
+  "devDependencies": {
+    "electron": "40.9.3"
+  }
+}
