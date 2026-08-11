@@ -37,6 +37,24 @@ pnpm install
 pnpm start
 ```
 
+## Install From Release
+
+The release build is not notarized because this project does not currently use an Apple Developer ID certificate.
+
+If macOS shows a warning such as `"Copy Pannel" is damaged and can't be opened`, remove the quarantine attribute after installing the app:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Copy Pannel.app"
+```
+
+If you are opening the app directly from the mounted DMG, use the path inside the volume instead:
+
+```bash
+xattr -dr com.apple.quarantine "/Volumes/Copy Pannel/Copy Pannel.app"
+```
+
+You can also try Finder's right-click `Open` flow. A fully trusted double-click install requires Apple Developer ID signing and notarization.
+
 ## Check
 
 ```bash
