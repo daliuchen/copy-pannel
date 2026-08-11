@@ -2,13 +2,25 @@ const state = {
   items: [],
   query: '',
   filter: 'all',
-  selectedIndex: 0
+  selectedIndex: 0,
+  settings: {
+    maxItems: 500,
+    clearSearchOnOpen: true
+  }
 };
 
 const listEl = document.querySelector('#historyList');
 const emptyEl = document.querySelector('#emptyState');
 const searchInput = document.querySelector('#searchInput');
 const countLabel = document.querySelector('#countLabel');
+const settingsButton = document.querySelector('#settingsButton');
+const settingsPanel = document.querySelector('#settingsPanel');
+const settingsCloseButton = document.querySelector('#settingsCloseButton');
+const maxItemsInput = document.querySelector('#maxItemsInput');
+const clearSearchInput = document.querySelector('#clearSearchInput');
+const confirmPanel = document.querySelector('#confirmPanel');
+const confirmCancelButton = document.querySelector('#confirmCancelButton');
+const confirmClearButton = document.querySelector('#confirmClearButton');
 const clearButton = document.querySelector('#clearButton');
 const hideButton = document.querySelector('#hideButton');
 const filterButtons = [...document.querySelectorAll('.filter')];
@@ -53,7 +65,6 @@ function itemBodyHtml(item) {
 
 function matchesFilter(item) {
   if (state.filter === 'all') return true;
-  if (state.filter === 'favorite') return item.favorite;
   if (state.filter === 'file') return ['file', 'image-file', 'media-file'].includes(item.type);
   if (state.filter === 'image') return ['image', 'image-file'].includes(item.type);
   return item.type === state.filter;
@@ -89,7 +100,6 @@ function render() {
     .map((item, index) => {
       const selectedClass = index === state.selectedIndex ? ' is-selected' : '';
       const imageClass = item.type === 'image' ? ' is-image' : '';
-      const favoriteLabel = item.favorite ? '★' : '☆';
       return `
         <article class="history-item${selectedClass}${imageClass}" data-id="${escapeHtml(item.id)}">
           <div class="item-main">
@@ -100,7 +110,6 @@ function render() {
             </div>
           </div>
           <div class="item-actions">
-            <button class="item-action" type="button" data-action="favorite" title="收藏">${favoriteLabel}</button>
             <button class="item-action primary" type="button" data-action="restore" title="复制到剪贴板">↵</button>
             <button class="item-action danger" type="button" data-action="delete" title="删除">×</button>
           </div>
@@ -108,6 +117,47 @@ function render() {
       `;
     })
     .join('');
+}
+
+function scrollSelectedIntoView() {
+  const selectedEl = listEl.querySelector('.history-item.is-selected');
+  if (!selectedEl) return;
+  selectedEl.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest'
+  });
+}
+
+function renderSettings() {
+  maxItemsInput.value = state.settings.maxItems;
+  clearSearchInput.checked = state.settings.clearSearchOnOpen;
+}
+
+function openSettings() {
+  renderSettings();
+  settingsPanel.hidden = false;
+  maxItemsInput.focus();
+  maxItemsInput.select();
+}
+
+function closeSettings() {
+  settingsPanel.hidden = true;
+  searchInput.focus();
+}
+
+function openConfirm() {
+  confirmPanel.hidden = false;
+  confirmCancelButton.focus();
+}
+
+function closeConfirm() {
+  confirmPanel.hidden = true;
+  searchInput.focus();
+}
+
+async function saveSettings(partialSettings) {
+  state.settings = await window.copyPannel.updateSettings(partialSettings);
+  renderSettings();
 }
 
 async function restoreByIndex(index) {
@@ -148,12 +198,38 @@ listEl.addEventListener('click', async (event) => {
     await window.copyPannel.restore(id);
     await window.copyPannel.hide();
   }
-  if (button.dataset.action === 'favorite') await window.copyPannel.toggleFavorite(id);
   if (button.dataset.action === 'delete') await window.copyPannel.delete(id);
 });
 
 clearButton.addEventListener('click', async () => {
+  openConfirm();
+});
+
+confirmCancelButton.addEventListener('click', closeConfirm);
+
+confirmClearButton.addEventListener('click', async () => {
   await window.copyPannel.clear();
+  closeConfirm();
+});
+
+confirmPanel.addEventListener('click', (event) => {
+  if (event.target === confirmPanel) closeConfirm();
+});
+
+settingsButton.addEventListener('click', openSettings);
+
+settingsCloseButton.addEventListener('click', closeSettings);
+
+settingsPanel.addEventListener('click', (event) => {
+  if (event.target === settingsPanel) closeSettings();
+});
+
+maxItemsInput.addEventListener('change', async () => {
+  await saveSettings({ maxItems: maxItemsInput.value });
+});
+
+clearSearchInput.addEventListener('change', async () => {
+  await saveSettings({ clearSearchOnOpen: clearSearchInput.checked });
 });
 
 hideButton.addEventListener('click', async () => {
@@ -164,17 +240,27 @@ document.addEventListener('keydown', async (event) => {
   const items = filteredItems();
   if (event.key === 'Escape') {
     event.preventDefault();
+    if (!confirmPanel.hidden) {
+      closeConfirm();
+      return;
+    }
+    if (!settingsPanel.hidden) {
+      closeSettings();
+      return;
+    }
     await window.copyPannel.hide();
   }
   if (event.key === 'ArrowDown') {
     event.preventDefault();
     state.selectedIndex = Math.min(state.selectedIndex + 1, Math.max(items.length - 1, 0));
     render();
+    scrollSelectedIntoView();
   }
   if (event.key === 'ArrowUp') {
     event.preventDefault();
     state.selectedIndex = Math.max(state.selectedIndex - 1, 0);
     render();
+    scrollSelectedIntoView();
   }
   if (event.key === 'Enter') {
     event.preventDefault();
@@ -183,16 +269,31 @@ document.addEventListener('keydown', async (event) => {
 });
 
 window.copyPannel.onPanelOpened(() => {
-  state.query = '';
+  if (state.settings.clearSearchOnOpen) {
+    state.query = '';
+    searchInput.value = '';
+  }
   state.selectedIndex = 0;
-  searchInput.value = '';
   render();
-  requestAnimationFrame(() => searchInput.focus());
+  requestAnimationFrame(() => {
+    searchInput.focus();
+    listEl.scrollTop = 0;
+  });
 });
 
 window.copyPannel.onChanged((items) => {
   state.items = items;
   render();
+});
+
+window.copyPannel.onSettingsChanged((settings) => {
+  state.settings = settings;
+  renderSettings();
+});
+
+window.copyPannel.getSettings().then((settings) => {
+  state.settings = settings;
+  renderSettings();
 });
 
 window.copyPannel.list().then((items) => {

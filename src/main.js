@@ -1,9 +1,13 @@
 const { app, BrowserWindow, Tray, Menu, clipboard, ipcMain, globalShortcut, nativeImage, protocol, screen } = require('electron');
 const crypto = require('node:crypto');
+const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-const MAX_ITEMS = 500;
+const DEFAULT_SETTINGS = {
+  maxItems: 500,
+  clearSearchOnOpen: true
+};
 const POLL_INTERVAL_MS = 650;
 const MEDIA_EXTENSIONS = new Set([
   '.avi',
@@ -45,6 +49,7 @@ protocol.registerSchemesAsPrivileged([
 function createEmptyStore() {
   return {
     version: 1,
+    settings: { ...DEFAULT_SETTINGS },
     items: []
   };
 }
@@ -66,6 +71,8 @@ async function ensureStore() {
     store = JSON.parse(raw);
     if (!store || !Array.isArray(store.items)) {
       store = createEmptyStore();
+    } else {
+      store.settings = normalizeSettings(store.settings);
     }
   } catch {
     await fs.mkdir(dataDir, { recursive: true });
@@ -74,9 +81,62 @@ async function ensureStore() {
   }
 }
 
+function normalizeSettings(settings = {}) {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    maxItems: clampMaxItems(settings.maxItems ?? DEFAULT_SETTINGS.maxItems)
+  };
+}
+
+function clampMaxItems(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_SETTINGS.maxItems;
+  return Math.max(50, Math.min(parsed, 5000));
+}
+
 async function persistStore() {
   const { storePath } = getDataPaths();
   await fs.writeFile(storePath, JSON.stringify(store, null, 2));
+}
+
+async function deleteAsset(assetName) {
+  if (!assetName || isAssetReferenced(assetName)) return;
+
+  const { assetsDir } = getDataPaths();
+  try {
+    await fs.unlink(path.join(assetsDir, assetName));
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error('Failed to delete clipboard asset:', error);
+    }
+  }
+}
+
+function isAssetReferenced(assetName) {
+  return store.items.some((item) => item.type === 'image' && item.assetName === assetName);
+}
+
+async function cleanupOrphanAssets() {
+  const { assetsDir } = getDataPaths();
+  const referencedAssets = new Set(
+    store.items
+      .filter((item) => item.type === 'image' && item.assetName)
+      .map((item) => item.assetName)
+  );
+
+  let assetNames = [];
+  try {
+    assetNames = await fs.readdir(assetsDir);
+  } catch {
+    return;
+  }
+
+  await Promise.all(
+    assetNames
+      .filter((assetName) => assetName.endsWith('.png') && !referencedAssets.has(assetName))
+      .map((assetName) => fs.unlink(path.join(assetsDir, assetName)).catch(() => {}))
+  );
 }
 
 function hashBuffer(buffer) {
@@ -188,8 +248,7 @@ async function readCurrentClipboardItem() {
       filePaths,
       title: '',
       searchableText: joined,
-      createdAt: nowIso(),
-      favorite: false
+      createdAt: nowIso()
     };
     item.title = buildTitle(item);
     return {
@@ -217,8 +276,7 @@ async function readCurrentClipboardItem() {
         height: size.height,
         title: '',
         searchableText: `图片 ${size.width}x${size.height}`,
-        createdAt: nowIso(),
-        favorite: false
+        createdAt: nowIso()
       };
       item.title = buildTitle(item);
       return {
@@ -236,8 +294,7 @@ async function readCurrentClipboardItem() {
       text,
       title: '',
       searchableText: text,
-      createdAt: nowIso(),
-      favorite: false
+      createdAt: nowIso()
     };
     item.title = buildTitle(item);
     return {
@@ -272,12 +329,31 @@ async function captureClipboard() {
       store.items.unshift(snapshot.item);
     }
 
-    store.items = store.items.slice(0, MAX_ITEMS);
+    const removedItems = trimHistory();
     await persistStore();
+    await cleanupRemovedAssets(removedItems);
     sendItems();
   } catch (error) {
     console.error('Failed to capture clipboard:', error);
   }
+}
+
+function trimHistory() {
+  const removedItems = [];
+  while (store.items.length > store.settings.maxItems) {
+    const removableIndex = store.items.length - 1;
+    const [removedItem] = store.items.splice(removableIndex, 1);
+    removedItems.push(removedItem);
+  }
+  return removedItems;
+}
+
+async function cleanupRemovedAssets(items) {
+  const assetNames = items
+    .filter((item) => item.type === 'image' && item.assetName)
+    .map((item) => item.assetName);
+
+  await Promise.all(assetNames.map((assetName) => deleteAsset(assetName)));
 }
 
 function presentItem(item) {
@@ -291,6 +367,12 @@ function presentItem(item) {
 function sendItems() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('history:changed', store.items.map(presentItem));
+  }
+}
+
+function sendSettings() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('settings:changed', store.settings);
   }
 }
 
@@ -338,6 +420,7 @@ function createWindow() {
     minWidth: 680,
     minHeight: 480,
     title: 'Copy Pannel',
+    icon: path.join(__dirname, '..', 'assets', 'app-icon.svg'),
     frame: false,
     transparent: true,
     resizable: false,
@@ -433,14 +516,7 @@ function createTray() {
 }
 
 function createTrayIcon() {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-      <rect x="8" y="6" width="16" height="22" rx="3" fill="#1f7a63"/>
-      <rect x="12" y="4" width="8" height="5" rx="2" fill="#1f7a63"/>
-      <rect x="11" y="13" width="10" height="2" rx="1" fill="#ffffff"/>
-      <rect x="11" y="18" width="10" height="2" rx="1" fill="#ffffff"/>
-    </svg>
-  `;
+  const svg = fsSync.readFileSync(path.join(__dirname, '..', 'assets', 'app-icon.svg'), 'utf8');
   const icon = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
   icon.setTemplateImage(true);
   return icon.resize({ width: 18, height: 18 });
@@ -460,28 +536,37 @@ function registerAssetProtocol() {
 }
 
 ipcMain.handle('history:list', () => store.items.map(presentItem));
+ipcMain.handle('settings:get', () => store.settings);
+ipcMain.handle('settings:update', async (_event, nextSettings) => {
+  store.settings = normalizeSettings({
+    ...store.settings,
+    ...nextSettings
+  });
+  const removedItems = trimHistory();
+  await persistStore();
+  await cleanupRemovedAssets(removedItems);
+  sendSettings();
+  sendItems();
+  return store.settings;
+});
 ipcMain.handle('history:restore', async (_event, id) => restoreItem(id));
 ipcMain.handle('panel:hide', () => {
   hidePanel();
   return true;
 });
-ipcMain.handle('history:toggleFavorite', async (_event, id) => {
-  const item = getItem(id);
-  if (!item) return false;
-  item.favorite = !item.favorite;
-  await persistStore();
-  sendItems();
-  return true;
-});
 ipcMain.handle('history:delete', async (_event, id) => {
+  const removedItem = getItem(id);
   store.items = store.items.filter((item) => item.id !== id);
   await persistStore();
+  await cleanupRemovedAssets(removedItem ? [removedItem] : []);
   sendItems();
   return true;
 });
 ipcMain.handle('history:clear', async () => {
-  store.items = store.items.filter((item) => item.favorite);
+  const removedItems = store.items;
+  store.items = [];
   await persistStore();
+  await cleanupRemovedAssets(removedItems);
   sendItems();
   return true;
 });
@@ -492,6 +577,7 @@ app.whenReady().then(async () => {
   }
 
   await ensureStore();
+  await cleanupOrphanAssets();
   registerAssetProtocol();
   createWindow();
   createTray();

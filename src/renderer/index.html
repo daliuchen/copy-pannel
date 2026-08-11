@@ -14,7 +14,8 @@
           <p id="countLabel">0 条记录</p>
         </div>
         <div class="window-actions">
-          <button id="clearButton" class="icon-button" type="button" title="清空未收藏记录">⌫</button>
+          <button id="settingsButton" class="icon-button" type="button" title="设置">⚙</button>
+          <button id="clearButton" class="clear-button" type="button" title="清空所有记录">清空</button>
           <button id="hideButton" class="icon-button" type="button" title="隐藏">×</button>
         </div>
       </header>
@@ -30,13 +31,56 @@
           <button class="filter" type="button" data-filter="image">图片</button>
           <button class="filter" type="button" data-filter="video">视频</button>
           <button class="filter" type="button" data-filter="file">文件</button>
-          <button class="filter" type="button" data-filter="favorite">收藏</button>
         </div>
       </section>
 
       <section id="historyList" class="history-list" aria-live="polite"></section>
       <section id="emptyState" class="empty-state" hidden>
         <p>没有匹配内容</p>
+      </section>
+
+      <section id="settingsPanel" class="settings-panel" hidden>
+        <div class="settings-card">
+          <header class="settings-header">
+            <h2>设置</h2>
+            <button id="settingsCloseButton" class="icon-button" type="button" title="关闭">×</button>
+          </header>
+
+          <label class="setting-row">
+            <span>
+              <strong>保存条数</strong>
+              <small>超过上限后自动删除最旧记录</small>
+            </span>
+            <input id="maxItemsInput" type="number" min="50" max="5000" step="50" />
+          </label>
+
+          <label class="setting-row checkbox-row">
+            <span>
+              <strong>每次打开清空搜索</strong>
+              <small>呼出面板时回到最近记录</small>
+            </span>
+            <input id="clearSearchInput" type="checkbox" />
+          </label>
+
+          <div class="setting-row readonly-row">
+            <span>
+              <strong>呼出快捷键</strong>
+              <small>当前固定为全局快捷键</small>
+            </span>
+            <kbd>⌘ ⇧ V</kbd>
+          </div>
+        </div>
+      </section>
+
+      <section id="confirmPanel" class="confirm-panel" hidden>
+        <div class="confirm-card">
+          <h2>清空所有记录？</h2>
+          <p>此操作会删除全部剪贴板历史，图片缓存也会一并清理。</p>
+          <div class="confirm-actions">
+            <button id="confirmCancelButton" class="secondary-button" type="button">取消</button>
+            <button id="confirmClearButton" class="danger-button" type="button">清空</button>
+          </div>
+        </div>
       </section>
     </main>
 

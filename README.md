@@ -1,29 +1,54 @@
 # Copy Pannel
 
-一个用于替代 Clipy 的桌面剪贴板 MVP，重点解决：
+A macOS clipboard manager intended as a Clipy replacement, with better support for images, media files, and search while keeping a fast keyboard-driven workflow.
 
-- 图片剪贴板历史
-- 视频/文件路径剪贴板历史
-- 更好用的搜索
+## Features
 
-## 运行
+- Global shortcut: `CommandOrControl+Shift+V`
+- Opens near the current mouse position and on the current display
+- Tracks text, images, and file URL clipboard entries
+- Stores copied images as local PNG assets and restores them back to the system clipboard
+- Tracks videos and other media files as Finder file references
+- Searches text, filenames, and image dimensions
+- Filters by type: All, Text, Image, Video, File
+- `Enter` restores the selected item and hides the panel
+- `Esc` hides the panel or closes settings/confirmation dialogs
+- Deletes unused image cache files when history items are removed
+- Uses an in-app confirmation dialog before clearing history
+
+## Settings
+
+Open settings from the top-right button.
+
+- History limit: default `500`, range `50` to `5000`
+- Clear search on open: enabled by default
+- Current global shortcut display: `⌘ ⇧ V`
+
+Settings are stored in Electron's `userData` directory and persist across restarts.
+
+## Run
 
 ```bash
 pnpm install
 pnpm start
 ```
 
-## 当前能力
+## Check
 
-- 常驻托盘，点击托盘图标打开/隐藏主窗口
-- 启动后后台运行，`CommandOrControl+Shift+V` 直接呼出剪贴板面板
-- `Enter` 恢复选中记录并隐藏面板，`Esc` 隐藏面板
-- 自动记录文本、图片、文件 URL 剪贴板内容
-- 图片保存为本地 PNG 资产，恢复时写回系统剪贴板
-- 视频等文件复制时记录文件路径，恢复时写回 macOS 文件 URL 剪贴板
-- 支持按标题、正文、文件名搜索
-- 支持收藏、删除、清空历史
+```bash
+pnpm run check
+```
 
-## 说明
+## Build
 
-视频通常不是直接以二进制内容放在剪贴板里，而是以“文件引用/文件 URL”的形式存在。本应用记录并恢复这种引用，因此适合 Finder、聊天软件、编辑器之间的媒体文件复制粘贴。
+```bash
+pnpm run build
+```
+
+GitHub Actions builds the macOS app on push and pull requests. Pushing a tag named `v*`, for example `v0.1.0`, builds the app and publishes a GitHub release with the generated artifacts.
+
+## Notes
+
+Videos are usually not stored directly as binary clipboard data. They are commonly placed on the clipboard as file references or file URLs. Copy Pannel records and restores those references, which makes it suitable for copying media files between Finder, chat apps, and editors.
+
+Image history is stored as local PNG files. When image records are deleted, history is cleared, or the history limit removes old items, unused image cache files are cleaned up automatically.
