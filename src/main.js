@@ -568,6 +568,10 @@ function showPanel() {
   keepPanelAboveFullscreen();
   positionPanelNearCursor();
   mainWindow.showInactive();
+  keepPanelAboveFullscreen();
+  if (process.platform === 'darwin') {
+    mainWindow.moveTop();
+  }
   mainWindow.webContents.focus();
   mainWindow.webContents.send('panel:opened');
   sendItems();
@@ -695,6 +699,7 @@ ipcMain.handle('history:clear', async () => {
 
 app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
+    app.setActivationPolicy('accessory');
     app.dock.hide();
   }
 

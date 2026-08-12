@@ -72,7 +72,7 @@ pnpm run build
 
 The build script compiles `native/ocr-helper.swift` into `resources/ocr-helper` before packaging the Electron app. The helper is included as an extra resource so release builds can run OCR without requiring Swift to be installed on the user's machine.
 
-GitHub Actions builds the macOS app on push and pull requests. Pushing a tag named `v*`, for example `v0.1.2`, builds the app and publishes a GitHub release with the generated artifacts.
+GitHub Actions builds the macOS app on push and pull requests. Pushing a tag named `v*`, for example `v0.1.3`, builds the app and publishes a GitHub release with the generated artifacts.
 
 ## Notes
 
