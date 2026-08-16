@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, clipboard, ipcMain, globalShortcut, nativeImage, protocol, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, clipboard, ipcMain, globalShortcut, nativeImage, protocol, screen, powerMonitor } = require('electron');
 const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const fsSync = require('node:fs');
@@ -11,6 +11,9 @@ const DEFAULT_SETTINGS = {
 };
 const POLL_INTERVAL_MS = 650;
 const OCR_TIMEOUT_MS = 8000;
+const GLOBAL_SHORTCUT = 'CommandOrControl+Shift+V';
+// 显示后短暂忽略 blur：避免在别的 app 上唤醒时，面板拿到 key 焦点又被系统弹回而立即隐藏
+const SHOW_BLUR_GRACE_MS = 300;
 const MEDIA_EXTENSIONS = new Set([
   '.avi',
   '.m4v',
@@ -37,6 +40,7 @@ let pollTimer;
 let store;
 let lastSignature = '';
 let isRestoring = false;
+let panelShownAt = 0;
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -554,7 +558,12 @@ function createWindow() {
   }
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  mainWindow.on('blur', () => mainWindow.hide());
+  mainWindow.on('blur', () => {
+    if (!mainWindow || !mainWindow.isVisible()) return;
+    // 刚显示时系统可能把焦点弹回原前台 app，触发一次伪 blur —— 忽略它，否则面板会闪一下就消失
+    if (Date.now() - panelShownAt < SHOW_BLUR_GRACE_MS) return;
+    mainWindow.hide();
+  });
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
@@ -565,13 +574,16 @@ function createWindow() {
 
 function showPanel() {
   if (!mainWindow) return;
+  // 先标记显示时刻，覆盖住 showInactive/focus 期间可能产生的伪 blur
+  panelShownAt = Date.now();
+  // 先确定层级与位置，再显示，避免竞态导致不出现在当前 Space/全屏之上
   keepPanelAboveFullscreen();
   positionPanelNearCursor();
   mainWindow.showInactive();
-  keepPanelAboveFullscreen();
   if (process.platform === 'darwin') {
     mainWindow.moveTop();
   }
+  keepPanelAboveFullscreen();
   mainWindow.webContents.focus();
   mainWindow.webContents.send('panel:opened');
   sendItems();
@@ -697,7 +709,25 @@ ipcMain.handle('history:clear', async () => {
   return true;
 });
 
+function registerGlobalShortcut() {
+  if (globalShortcut.isRegistered(GLOBAL_SHORTCUT)) return true;
+  const ok = globalShortcut.register(GLOBAL_SHORTCUT, showPanel);
+  if (!ok) {
+    console.warn(`[copy-pannel] 全局快捷键注册失败（可能被其他应用占用）: ${GLOBAL_SHORTCUT}`);
+  }
+  return ok;
+}
+
+// 单实例锁：避免多个实例同时抢注全局快捷键导致「快捷键没反应」
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+// 再次启动时，交给已有实例把面板唤起
+app.on('second-instance', () => showPanel());
+
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return;
   if (process.platform === 'darwin') {
     app.setActivationPolicy('accessory');
     app.dock.hide();
@@ -709,7 +739,9 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
 
-  globalShortcut.register('CommandOrControl+Shift+V', showPanel);
+  registerGlobalShortcut();
+  // 睡眠唤醒后全局快捷键可能失效，重新注册一次
+  powerMonitor.on('resume', registerGlobalShortcut);
   pollTimer = setInterval(captureClipboard, POLL_INTERVAL_MS);
   await captureClipboard();
 });
