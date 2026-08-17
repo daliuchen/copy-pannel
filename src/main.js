@@ -580,23 +580,34 @@ function showPanel() {
   keepPanelAboveFullscreen();
   positionPanelNearCursor();
   mainWindow.showInactive();
-  if (process.platform === 'darwin') {
-    mainWindow.moveTop();
-  }
-  keepPanelAboveFullscreen();
   mainWindow.webContents.focus();
   mainWindow.webContents.send('panel:opened');
   sendItems();
+  // showInactive 之后再断言一次层级/全屏行为，抵消显示过程中的竞态。
+  // 注意：这里不再调用 moveTop —— 它在 macOS 上会把面板拉回 app 自己的 Space，
+  // 反而可能让面板从当前全屏 Space 掉下去。screen-saver 层级已足以保证置顶。
+  keepPanelAboveFullscreen();
+  // 复用的窗口在「加入全屏 Space」这一步是系统异步完成的，show 那一刻偶尔还没生效，
+  // 面板就随机掉进了全屏背后的桌面 Space。下一拍再断言一次层级/悬浮全屏行为兜底。
+  if (process.platform === 'darwin') {
+    setTimeout(() => {
+      if (mainWindow && mainWindow.isVisible()) keepPanelAboveFullscreen();
+    }, 60);
+  }
 }
 
 function keepPanelAboveFullscreen() {
   if (process.platform !== 'darwin' || !mainWindow) return;
 
+  // 顺序很关键：macOS 上 setAlwaysOnTop 会重写窗口的 collectionBehavior，
+  // 把 setVisibleOnAllWorkspaces 设的 fullScreenAuxiliary（悬浮全屏）冲掉。
+  // 所以必须「先设层级、再设随全屏可见」，让悬浮全屏成为最后生效的状态，
+  // 否则会出现「有时浮在全屏之上、有时掉到全屏之下」的间歇性问题。
+  mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
   mainWindow.setVisibleOnAllWorkspaces(true, {
     visibleOnFullScreen: true,
     skipTransformProcessType: true
   });
-  mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
 }
 
 function positionPanelNearCursor() {
