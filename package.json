@@ -1,6 +1,6 @@
 {
   "name": "copy-pannel",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A macOS-friendly clipboard history app with text, image, and media file support.",
   "main": "src/main.js",
   "scripts": {
